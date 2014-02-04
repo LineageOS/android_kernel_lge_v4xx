@@ -640,7 +640,7 @@ static void msm_mpm_work_fn(struct work_struct *work)
 	unsigned long flags;
 	while (1) {
 		bool allow;
-		wait_for_completion(&wake_wq);
+		wait_for_completion_interruptible(&wake_wq);
 		spin_lock_irqsave(&msm_mpm_lock, flags);
 #ifdef CONFIG_MACH_LGE
 		if (in_suspend) {
