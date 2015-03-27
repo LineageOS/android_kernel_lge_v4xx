@@ -1148,9 +1148,13 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 		DBG(cdev, "class request: %d index: %d value: %d length: %d\n",
 			ctrl->bRequest, w_index, w_value, w_length);
 
+#ifdef CONFIG_MACH_LGE
+		if (ctrl->bRequest == MTP_REQ_CANCEL && (w_index == 0 || w_index == mtp_interface_desc.bInterfaceNumber)
+#else
 		if (ctrl->bRequest == MTP_REQ_CANCEL && w_index == 0
+#endif
 				&& w_value == 0) {
-			DBG(cdev, "MTP_REQ_CANCEL\n");
+				DBG(cdev, "MTP_REQ_CANCEL\n");
 
 			spin_lock_irqsave(&dev->lock, flags);
 			if (dev->state == STATE_BUSY) {
@@ -1166,7 +1170,11 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 			 */
 			value = w_length;
 		} else if (ctrl->bRequest == MTP_REQ_GET_DEVICE_STATUS
+#ifdef CONFIG_MACH_LGE
+                                && (w_index == 0 || w_index == mtp_interface_desc.bInterfaceNumber) && w_value == 0) {
+#else
 				&& w_index == 0 && w_value == 0) {
+#endif
 			struct mtp_device_status *status = cdev->req->buf;
 			status->wLength =
 				__constant_cpu_to_le16(sizeof(*status));
