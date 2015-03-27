@@ -574,6 +574,17 @@ static void bulk_in_complete(struct usb_ep *ep, struct usb_request *req)
 	if (req->status == -ECONNRESET)		/* Request was cancelled */
 		usb_ep_fifo_flush(ep);
 
+#ifdef CONFIG_MACH_LGE
+	if (!common) {
+		pr_info("QCT_TESTCODE %s: Driver_data is already free!!\n", __func__);
+		return;
+	}
+	if (!common->running) {
+		pr_info("%s: is not running\n", __func__);
+		return;
+	}
+#endif
+
 	/* Hold the lock while we update the request and buffer states */
 	smp_wmb();
 	spin_lock(&common->lock);
@@ -594,6 +605,17 @@ static void bulk_out_complete(struct usb_ep *ep, struct usb_request *req)
 		    req->status, req->actual, bh->bulk_out_intended_length);
 	if (req->status == -ECONNRESET)		/* Request was cancelled */
 		usb_ep_fifo_flush(ep);
+
+#ifdef CONFIG_MACH_LGE
+	if (!common) {
+		pr_info("QCT_TESTCODE %s: Driver_data is already free!!\n", __func__);
+		return;
+	}
+	if (!common->running) {
+		pr_info("%s: is not running\n", __func__);
+		return;
+	}
+#endif
 
 	/* Hold the lock while we update the request and buffer states */
 	smp_wmb();
@@ -2632,6 +2654,12 @@ static void handle_exception(struct fsg_common *common)
 			spin_lock_irq(&common->lock);
 			for (i = 0; i < fsg_num_buffers; ++i) {
 				bh = &common->buffhds[i];
+#ifdef CONFIG_MACH_LGE
+				if (common->fsg->bulk_in->desc == NULL)
+					bh->inreq_busy = 0;
+				if (common->fsg->bulk_out->desc == NULL)
+					bh->outreq_busy = 0;
+#endif
 				num_active += bh->inreq_busy + bh->outreq_busy;
 			}
 			spin_unlock_irq(&common->lock);
@@ -2918,6 +2946,17 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 	common->ep0 = gadget->ep0;
 	common->ep0req = cdev->req;
 	common->cdev = cdev;
+
+#ifndef CONFIG_MACH_LGE
+	/* Maybe allocate device-global string IDs, and patch descriptors */
+	if (fsg_strings[FSG_STRING_INTERFACE].id == 0) {
+		rc = usb_string_id(cdev);
+		if (unlikely(rc < 0))
+			goto error_release;
+		fsg_strings[FSG_STRING_INTERFACE].id = rc;
+		fsg_intf_desc.iInterface = rc;
+	}
+#endif
 
 	/*
 	 * Create the LUNs, open their backing files, and register the

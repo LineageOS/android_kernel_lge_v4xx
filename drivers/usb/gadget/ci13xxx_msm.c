@@ -14,6 +14,10 @@
 
 #include "ci13xxx_udc.c"
 
+#ifdef CONFIG_MACH_LGE
+#include <linux/wakelock.h>
+#endif
+
 #define MSM_USB_BASE	(udc->regs)
 
 #define CI13XXX_MSM_MAX_LOG2_ITC	7
@@ -24,9 +28,21 @@ struct ci13xxx_udc_context {
 	int wake_gpio;
 	int wake_irq;
 	bool wake_irq_state;
+#ifdef CONFIG_MACH_LGE
+	struct wake_lock wlock;
+	struct delayed_work wunlock_w;
+#endif
 };
 
 static struct ci13xxx_udc_context _udc_ctxt;
+
+#ifdef CONFIG_MACH_LGE
+#define UNLOCK_DELAY   msecs_to_jiffies(1000)
+static void wunlock_w(struct work_struct *w)
+{
+	wake_unlock(&_udc_ctxt.wlock);
+}
+#endif
 
 static irqreturn_t msm_udc_irq(int irq, void *data)
 {
@@ -173,11 +189,18 @@ static void ci13xxx_msm_notify_event(struct ci13xxx *udc, unsigned event)
 	case CI13XXX_CONTROLLER_RESET_EVENT:
 		dev_info(dev, "CI13XXX_CONTROLLER_RESET_EVENT received\n");
 		ci13xxx_msm_reset();
+#ifdef CONFIG_MACH_LGE
+		cancel_delayed_work_sync(&_udc_ctxt.wunlock_w);
+		wake_lock(&_udc_ctxt.wlock);
+#endif
 		break;
 	case CI13XXX_CONTROLLER_DISCONNECT_EVENT:
 		dev_info(dev, "CI13XXX_CONTROLLER_DISCONNECT_EVENT received\n");
 		ci13xxx_msm_disconnect();
 		ci13xxx_msm_resume();
+#ifdef CONFIG_MACH_LGE
+		schedule_delayed_work(&_udc_ctxt.wunlock_w, UNLOCK_DELAY);
+#endif
 		break;
 	case CI13XXX_CONTROLLER_CONNECT_EVENT:
 		dev_info(dev, "CI13XXX_CONTROLLER_CONNECT_EVENT received\n");
@@ -335,6 +358,11 @@ static int ci13xxx_msm_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "request_irq failed\n");
 		goto gpio_uninstall;
 	}
+
+#ifdef CONFIG_MACH_LGE
+	wake_lock_init(&_udc_ctxt.wlock, WAKE_LOCK_SUSPEND, "usb_bus_active");
+	INIT_DELAYED_WORK(&_udc_ctxt.wunlock_w, wunlock_w);
+#endif
 
 	pm_runtime_no_callbacks(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
