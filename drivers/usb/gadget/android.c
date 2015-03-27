@@ -35,6 +35,10 @@
 
 #include "gadget_chips.h"
 
+#ifdef CONFIG_MACH_LGE
+#include <linux/platform_data/lge_android_usb.h>
+#endif
+
 /*
  * Kbuild is not very cooperative with respect to linking separately
  * compiled library objects into one module.  So for now we won't use
@@ -204,6 +208,10 @@ struct android_dev {
 	char pm_qos[5];
 	struct pm_qos_request pm_qos_req_dma;
 	struct work_struct work;
+#ifdef CONFIG_MACH_LGE
+	bool check_pif;
+	bool check_charge_only;
+#endif
 
 	/* A list of struct android_configuration */
 	struct list_head configs;
@@ -222,6 +230,10 @@ struct android_configuration {
 	/* A list node inside the struct android_dev.configs list */
 	struct list_head list_item;
 };
+
+#ifdef CONFIG_MACH_LGE
+static struct android_dev *_android_dev;
+#endif
 
 struct dload_struct __iomem *diag_dload;
 static struct class *android_class;
@@ -245,11 +257,19 @@ static char manufacturer_string[256];
 static char product_string[256];
 static char serial_string[256];
 
+#ifdef CONFIG_MACH_LGE
+#define CHARGE_ONLY_STRING_IDX  3
+static char charge_only_string[256];
+#endif
+
 /* String Table */
 static struct usb_string strings_dev[] = {
 	[STRING_MANUFACTURER_IDX].s = manufacturer_string,
 	[STRING_PRODUCT_IDX].s = product_string,
 	[STRING_SERIAL_IDX].s = serial_string,
+#ifdef CONFIG_MACH_LGE
+	[CHARGE_ONLY_STRING_IDX].s = charge_only_string,
+#endif
 	{  }			/* end of list */
 };
 
@@ -552,6 +572,13 @@ static ssize_t acm_transports_store(
 		struct device *device, struct device_attribute *attr,
 		const char *buff, size_t size)
 {
+#ifdef CONFIG_MACH_LGE
+	struct android_dev *dev = _android_dev;
+	if (dev->check_pif) {
+		dev_info(dev->dev, "pif cable is plugged, not permitted\n");
+		return -EPERM;
+	}
+#endif
 	strlcpy(acm_transports, buff, sizeof(acm_transports));
 
 	return size;
@@ -1139,6 +1166,13 @@ static ssize_t clients_store(
 		struct device *device, struct device_attribute *attr,
 		const char *buff, size_t size)
 {
+#ifdef CONFIG_MACH_LGE
+	struct android_dev *dev = _android_dev;
+	if (dev->check_pif) {
+		dev_info(dev->dev, "pif cable is plugged, not permitted\n");
+		return -EPERM;
+	}
+#endif
 	strlcpy(diag_clients, buff, sizeof(diag_clients));
 
 	return size;
@@ -1718,17 +1752,36 @@ static int ecm_function_bind_config(struct android_usb_function *f,
 {
 	int ret;
 	struct ecm_function_config *ecm = f->config;
+#ifdef CONFIG_MACH_LGE
+	int i, len;
+#endif
 
 	if (!ecm) {
 		pr_err("%s: ecm_pdata\n", __func__);
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_MACH_LGE
+	/*
+	* generate ethadd by serial_string
+	*/
+	memset(ecm->ethaddr, 0, ETH_ALEN);
+	ecm->ethaddr[0] = 0x02;
+	len = strlen(serial_string);
+	for (i = 0; i < len; i++) {
+		ecm->ethaddr[i % (ETH_ALEN - 1) + 1] ^= serial_string[i];
+	}
+#endif
+
 	pr_info("%s MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
 		ecm->ethaddr[0], ecm->ethaddr[1], ecm->ethaddr[2],
 		ecm->ethaddr[3], ecm->ethaddr[4], ecm->ethaddr[5]);
 
+#ifdef CONFIG_MACH_LGE
+	ret = gether_setup_name(c->cdev->gadget, NULL, "usb");
+#else
 	ret = gether_setup_name(c->cdev->gadget, ecm->ethaddr, "ecm");
+#endif
 	if (ret) {
 		pr_err("%s: gether_setup failed\n", __func__);
 		return ret;
@@ -1778,6 +1831,11 @@ static int mass_storage_function_init(struct android_usb_function *f,
 								GFP_KERNEL);
 	if (!config)
 		return -ENOMEM;
+
+#ifdef CONFIG_MACH_LGE
+                config->fsg.vendor_name = "LGE";
+                config->fsg.product_name = "Android Platform";
+#endif
 
 	config->fsg.nluns = 1;
 	snprintf(name[0], MAX_LUN_NAME, "lun");
@@ -1885,7 +1943,6 @@ static struct android_usb_function mass_storage_function = {
 	.bind_config	= mass_storage_function_bind_config,
 	.attributes	= mass_storage_function_attributes,
 };
-
 
 static int accessory_function_init(struct android_usb_function *f,
 					struct usb_composite_dev *cdev)
@@ -2345,6 +2402,14 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 		return -EBUSY;
 	}
 
+#ifdef CONFIG_MACH_LGE
+	if (dev->check_pif) {
+		dev_info(dev->dev, "pif cable is plugged, not permitted\n");
+		mutex_unlock(&dev->mutex);
+		return -EPERM;
+	}
+#endif
+
 	/* Clear previous enabled list */
 	list_for_each_entry(conf, &dev->configs, list_item) {
 		while (conf->enabled_functions.next !=
@@ -2361,6 +2426,12 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 
 	strlcpy(buf, buff, sizeof(buf));
 	b = strim(buf);
+
+#ifdef CONFIG_MACH_LGE
+	dev->check_charge_only = false;
+	if (!strcmp(b, "charge_only"))
+		dev->check_charge_only = true;
+#endif
 
 	while (b) {
 		conf_str = strsep(&b, ":");
@@ -2425,6 +2496,20 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 	mutex_lock(&dev->mutex);
 
 	sscanf(buff, "%d", &enabled);
+#ifdef CONFIG_MACH_LGE
+	if (dev->check_pif) {
+		if (enabled && !dev->enabled) {
+			android_enable(dev);
+			dev->enabled = true;
+			mutex_unlock(&dev->mutex);
+			dev_info(dev->dev, "pif cable is plugged, enable!!!\n");
+			return size;
+		}
+		mutex_unlock(&dev->mutex);
+		dev_info(dev->dev, "pif cable is plugged, not permitted\n");
+		return -EPERM;
+	}
+#endif
 	if (enabled && !dev->enabled) {
 		/*
 		 * Update values in composite driver's copy of
@@ -2452,6 +2537,15 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 			}
 		if (audio_enabled)
 			msleep(100);
+#ifdef CONFIG_MACH_LGE
+		if (dev->check_charge_only) {
+			cdev->desc.iSerialNumber = 0;
+			cdev->desc.iProduct = strings_dev[CHARGE_ONLY_STRING_IDX].id;
+		} else {
+			cdev->desc.iSerialNumber = strings_dev[STRING_SERIAL_IDX].id;
+			cdev->desc.iProduct = strings_dev[STRING_PRODUCT_IDX].id;
+		}
+#endif
 		err = android_enable(dev);
 		if (err < 0) {
 			pr_err("%s: android_enable failed\n", __func__);
@@ -2520,6 +2614,27 @@ out:
 	return snprintf(buf, PAGE_SIZE, "%s\n", state);
 }
 
+#ifdef CONFIG_MACH_LGE
+static ssize_t lock_show(struct device *pdev, struct device_attribute *attr, char *buf)
+{
+	struct android_dev *dev = dev_get_drvdata(pdev);
+	return snprintf(buf, PAGE_SIZE, "%d\n", dev->check_pif);
+}
+
+static ssize_t lock_store(struct device *pdev, struct device_attribute *attr, const char *buff, size_t size)
+{
+	struct android_dev *dev = dev_get_drvdata(pdev);
+	int lock = 0;
+
+	mutex_lock(&dev->mutex);
+	sscanf(buff, "%d", &lock);
+	dev->check_pif = lock;
+	mutex_unlock(&dev->mutex);
+
+	return size;
+}
+#endif
+
 #define DESCRIPTOR_ATTR(field, format_string)				\
 static ssize_t								\
 field ## _show(struct device *dev, struct device_attribute *attr,	\
@@ -2579,6 +2694,9 @@ static DEVICE_ATTR(pm_qos, S_IRUGO | S_IWUSR,
 static DEVICE_ATTR(state, S_IRUGO, state_show, NULL);
 static DEVICE_ATTR(remote_wakeup, S_IRUGO | S_IWUSR,
 		remote_wakeup_show, remote_wakeup_store);
+#ifdef CONFIG_MACH_LGE
+static DEVICE_ATTR(lock, S_IRUGO | S_IWUSR, lock_show, lock_store);
+#endif
 
 static struct device_attribute *android_usb_attributes[] = {
 	&dev_attr_idVendor,
@@ -2595,6 +2713,9 @@ static struct device_attribute *android_usb_attributes[] = {
 	&dev_attr_pm_qos,
 	&dev_attr_state,
 	&dev_attr_remote_wakeup,
+#ifdef CONFIG_MACH_LGE
+	&dev_attr_lock,
+#endif
 	NULL
 };
 
@@ -2630,6 +2751,10 @@ static int android_bind(struct usb_composite_dev *cdev)
 	struct usb_gadget	*gadget = cdev->gadget;
 	struct android_configuration *conf;
 	int			gcnum, id, ret;
+#ifdef CONFIG_MACH_LGE
+	char lge_product[256];
+	char lge_manufacturer[256];
+#endif
 
 	/* Bind to the last android_dev that was probed */
 	dev = list_entry(android_dev_list.prev, struct android_dev, list_item);
@@ -2665,16 +2790,56 @@ static int android_bind(struct usb_composite_dev *cdev)
 	device_desc.iProduct = id;
 
 	/* Default strings - should be updated by userspace */
+#ifdef CONFIG_MACH_LGE
+	ret = lgeusb_get_manufacturer_name(lge_manufacturer);
+	if (!ret)
+		strlcpy(manufacturer_string, lge_manufacturer,
+				sizeof(manufacturer_string) - 1);
+	else
+		strlcpy(manufacturer_string, "LG Electronics Inc.",
+				sizeof(manufacturer_string) - 1);
+
+	ret = lgeusb_get_product_name(lge_product);
+	if (!ret)
+		strlcpy(product_string, lge_product, sizeof(product_string) - 1);
+	else
+		strlcpy(product_string, "LGE Android Phone",
+				sizeof(product_string) - 1);
+#else
 	strlcpy(manufacturer_string, "Android",
 		sizeof(manufacturer_string) - 1);
 	strlcpy(product_string, "Android", sizeof(product_string) - 1);
 	strlcpy(serial_string, "0123456789ABCDEF", sizeof(serial_string) - 1);
-
+#endif
 	id = usb_string_id(cdev);
 	if (id < 0)
 		return id;
 	strings_dev[STRING_SERIAL_IDX].id = id;
 	device_desc.iSerialNumber = id;
+
+#ifdef CONFIG_MACH_LGE
+	id = usb_string_id(cdev);
+	if (id < 0)
+		return id;
+
+	strings_dev[CHARGE_ONLY_STRING_IDX].id = id;
+	sprintf(charge_only_string, "USB Charge Only Interface");
+
+	/* ecm - 4:control interface label */
+	id = usb_string_id(cdev);
+	if (id < 0)
+		return id;
+
+	/* ecm - 5:MAC address */
+	id = usb_string_id(cdev);
+	if (id < 0)
+		return id;
+
+	/* ecm - 6:data interface label */
+	id = usb_string_id(cdev);
+	if (id < 0)
+		return id;
+#endif
 
 	if (gadget_is_otg(cdev->gadget))
 		list_for_each_entry(conf, &dev->configs, list_item)
@@ -3026,6 +3191,10 @@ static int __devinit android_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&android_dev->configs);
 	INIT_WORK(&android_dev->work, android_work);
 	mutex_init(&android_dev->mutex);
+
+#ifdef CONFIG_MACH_LGE
+	_android_dev = android_dev;
+#endif
 
 	android_dev->pdata = pdata;
 
