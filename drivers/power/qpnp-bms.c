@@ -3646,6 +3646,8 @@ static void qpnp_bms_external_power_changed(struct power_supply *psy)
 		chip->in_taper_charge = false;
 }
 
+static int64_t read_battery_id(struct qpnp_bms_chip *chip);
+
 static int qpnp_bms_power_get_property(struct power_supply *psy,
 					enum power_supply_property psp,
 					union power_supply_propval *val)
