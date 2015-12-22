@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7f7f9b97_6a2a1fe8",
+        "filename": "arch/arm/boot/dts/msm8226-lge-common/msm8226-lge-panel.dtsi",
+        "patchSetId": 1
+      },
+      "lineNbr": 2779,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2015-12-22T09:16:57Z",
+      "side": 1,
+      "message": "ah, it was during my grep that i saw it\n\nwe\u0027re definitely not using this panel \u003dP",
+      "revId": "ae1761f5379ea8caf52389dcf314cd4fb05e3569",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
