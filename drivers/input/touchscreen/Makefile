@@ -85,3 +85,11 @@ obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE) 	+= synaptics_fw_update.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI4)		+= synaptics_i2c_rmi4.o
 obj-$(CONFIG_TOUCHSCREEN_GT9XX)		+= gt9xx/
 obj-$(CONFIG_TOUCHSCREEN_ATMEL_T641)	+= atmel_t641.o atmel_t641_patch.o
+obj-$(CONFIG_TOUCHSCREEN_ATMEL_1188S)	+= atmel_mxt1188S.o
+obj-$(CONFIG_TOUCHSCREEN_ATMEL_T1664)	+= atmel_t1664.o
+obj-$(CONFIG_TOUCHSCREEN_ATMEL_T1664)	+= atmel_t1664_patch.o
+ifdef CONFIG_MACH_MSM8926_VFP_KR
+obj-$(CONFIG_TOUCHSCREEN_LGE_TS_MISC)		+= lge_ts_misc_vfp.o
+else
+obj-$(CONFIG_TOUCHSCREEN_LGE_TS_MISC)       += lge_ts_misc.o
+endif
