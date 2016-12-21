@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "5f681702_8d04304c",
+        "filename": "drivers/input/touchscreen/atmel_t1664.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 6464,
+      "author": {
+        "id": 16272
+      },
+      "writtenOn": "2016-12-21T17:05:34Z",
+      "side": 1,
+      "message": "These lines were taken from atmel_t641.c. In that file, they are not wrapped, so I did the same way.",
+      "parentUuid": "5f681702_cdad8889",
+      "revId": "7ddcfe73823d6f3231cdd1cdd61aba12857d8e92",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "5f681702_ed8de431",
         "filename": "drivers/input/touchscreen/atmel_t1664.h",
         "patchSetId": 1
@@ -47,6 +65,24 @@
       "writtenOn": "2016-12-21T14:19:18Z",
       "side": 1,
       "message": "other lines are using tabs rather than spaces here, we should follow suit",
+      "revId": "7ddcfe73823d6f3231cdd1cdd61aba12857d8e92",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5f681702_adf92c4e",
+        "filename": "drivers/input/touchscreen/atmel_t1664.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 337,
+      "author": {
+        "id": 16272
+      },
+      "writtenOn": "2016-12-21T17:05:34Z",
+      "side": 1,
+      "message": "Sorry, my editor is configured to use spaces instead of TABs.",
+      "parentUuid": "5f681702_4d85f807",
       "revId": "7ddcfe73823d6f3231cdd1cdd61aba12857d8e92",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
