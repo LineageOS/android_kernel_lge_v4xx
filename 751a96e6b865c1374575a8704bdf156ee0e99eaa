@@ -16,6 +16,23 @@
       "message": "Sorry, we don\u0027t accept changes on versions this old - especially not sans-authorship.",
       "revId": "751a96e6b865c1374575a8704bdf156ee0e99eaa",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "1d8cdc36_ac8da1f4",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29920
+      },
+      "writtenOn": "2021-11-14T00:30:20Z",
+      "side": 1,
+      "message": "Then how am I supposed to go about working on this device?",
+      "revId": "751a96e6b865c1374575a8704bdf156ee0e99eaa",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
